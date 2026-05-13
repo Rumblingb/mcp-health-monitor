@@ -4,6 +4,8 @@ An MCP server that checks if HTTP endpoints and MCP servers are up and responsiv
 
 **$19/mo** — Subscribe at: [https://buy.stripe.com/aFafZj0qXck4bY43IL1oI0F](https://buy.stripe.com/aFafZj0qXck4bY43IL1oI0F)
 
+🌐 **Landing page:** [https://rumblingb.github.io/mcp-health-monitor/](https://rumblingb.github.io/mcp-health-monitor/)
+
 ---
 
 ## Tools
