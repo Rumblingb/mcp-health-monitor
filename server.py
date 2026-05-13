@@ -1,11 +1,13 @@
 """
 MCP Health Monitor Server
 Checks if MCP servers and HTTP endpoints are up and responsive.
+$19/mo Pro — FREE_LIMIT=20 checks per instance.
 """
 import asyncio
 import time
 import subprocess
 import sys
+import json
 from typing import Optional
 
 import httpx
@@ -16,12 +18,44 @@ from mcp.types import Tool, TextContent
 
 server = Server("mcp-health-monitor")
 
+# ── Rate Limiting ──────────────────────────────────────────────────────
+FREE_LIMIT = 20
+_check_counter = 0
+_monitored_servers: dict[str, dict] = {}  # url -> {"interval": int, "last_status": dict}
+
+
+def _check_rate_limit() -> Optional[str]:
+    """Returns error message if rate limit exceeded, None if OK."""
+    global _check_counter
+    if _check_counter >= FREE_LIMIT:
+        return (
+            f"❌ Free tier limit of {FREE_LIMIT} checks reached.\n"
+            "Upgrade to Pro ($19/mo) for unlimited checks:\n"
+            "https://buy.stripe.com/aFafZj0qXck4bY43IL1oI0F"
+        )
+    return None
+
+
+def _increment_counter() -> None:
+    global _check_counter
+    _check_counter += 1
+
+
+# ── Helpers ────────────────────────────────────────────────────────────
 
 def _parse_duration(seconds: float) -> str:
     if seconds < 1:
         return f"{seconds * 1000:.0f}ms"
     return f"{seconds:.2f}s"
 
+
+def _truncate(text: str, max_len: int = 2000) -> str:
+    if len(text) > max_len:
+        return text[:max_len] + f"\n... (truncated, {len(text)} total chars)"
+    return text
+
+
+# ── Tool Definitions ───────────────────────────────────────────────────
 
 @server.list_tools()
 async def list_tools() -> list[Tool]:
@@ -92,8 +126,48 @@ async def list_tools() -> list[Tool]:
                 "required": ["url"],
             },
         ),
+        Tool(
+            name="check_smithery",
+            description="Fetch all servers from a Smithery namespace and check if their endpoints respond.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "namespace": {
+                        "type": "string",
+                        "description": "Smithery namespace (e.g., '@anthropic', '@openai')",
+                    },
+                },
+                "required": ["namespace"],
+            },
+        ),
+        Tool(
+            name="monitor_add",
+            description="Add a server URL to the monitoring list with a check interval in seconds.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "URL of the server to monitor"},
+                    "interval": {
+                        "type": "number",
+                        "description": "Check interval in seconds (minimum 30, default: 60)",
+                        "default": 60,
+                    },
+                },
+                "required": ["url"],
+            },
+        ),
+        Tool(
+            name="monitor_status",
+            description="Return the status of all currently monitored servers.",
+            inputSchema={
+                "type": "object",
+                "properties": {},
+            },
+        ),
     ]
 
+
+# ── HTTP Helpers ───────────────────────────────────────────────────────
 
 async def _do_http_get(url: str, timeout: float = 10.0) -> dict:
     """Perform a simple HTTP GET and return result dict."""
@@ -121,7 +195,7 @@ async def _do_http_get(url: str, timeout: float = 10.0) -> dict:
 
 
 def _do_http_get_with_timing(url: str, expected_status: Optional[int] = None) -> dict:
-    """Perform HTTP GET with per-phase timing breakdown using httpx internals."""
+    """Perform HTTP GET with per-phase timing breakdown using raw sockets."""
     import socket
     import ssl
     from urllib.parse import urlparse
@@ -237,15 +311,152 @@ def _do_http_get_with_timing(url: str, expected_status: Optional[int] = None) ->
     return result
 
 
+# ── Smithery API ───────────────────────────────────────────────────────
+
+SmitheryResult = list[dict] | dict[str, str | None]
+
+
+async def _fetch_smithery_servers(namespace: str) -> SmitheryResult:
+    """Fetch server definitions from Smithery registry for a given namespace."""
+    clean_ns = namespace.strip().lstrip("@")
+    registry_url = f"https://registry.smithery.ai/namespaces/{clean_ns}/servers"
+    
+    async with httpx.AsyncClient(timeout=httpx.Timeout(15.0)) as client:
+        try:
+            resp = await client.get(registry_url)
+            if resp.status_code == 200:
+                return resp.json()
+            elif resp.status_code == 404:
+                alt_url = f"https://registry.smithery.ai/@{clean_ns}/servers"
+                resp2 = await client.get(alt_url)
+                if resp2.status_code == 200:
+                    return resp2.json()
+                return {"error": f"Namespace '@{clean_ns}' not found in Smithery registry", "details": resp.text}
+            else:
+                return {"error": f"Smithery registry returned status {resp.status_code}", "details": resp.text}
+        except Exception as e:
+            return {"error": f"Failed to fetch Smithery registry: {e}"}
+
+
+# ── Tool Handlers ──────────────────────────────────────────────────────
+
+async def _handle_check_smithery(arguments: dict) -> str:
+    namespace = arguments["namespace"]
+    
+    rate_err = _check_rate_limit()
+    if rate_err:
+        return rate_err
+    
+    # Fetch servers from Smithery
+    raw = await _fetch_smithery_servers(namespace)
+    
+    if isinstance(raw, dict) and "error" in raw:
+        return f"❌ Smithery error: {raw['error']}"
+    
+    if not isinstance(raw, list) or len(raw) == 0:
+        return f"ℹ️ No servers found in namespace '{namespace}'"
+    
+    servers = raw if isinstance(raw, list) else []
+    lines = [f"# Smithery Namespace: {namespace}", f"Found {len(servers)} servers\n"]
+    
+    # Check each server's URL (if available)
+    results = []
+    for srv in servers:
+        name = srv.get("name", srv.get("id", "unknown"))
+        url = srv.get("url") or srv.get("endpoint") or srv.get("homepage")
+        if url:
+            result = await _do_http_get(url, timeout=10)
+            _increment_counter()
+            if "error" in result:
+                results.append(f"  ❌ {name}: {url} — {result['error']}")
+            else:
+                results.append(f"  ✅ {name}: {url} — {result['status_code']} | {result['response_time']}")
+        else:
+            results.append(f"  ⚠️  {name}: no URL available for check")
+    
+    lines.extend(results)
+    
+    health_pct = 0
+    success = sum(1 for r in results if r.startswith("  ✅"))
+    if results:
+        health_pct = round(success / len(results) * 100)
+    lines.append(f"\nNamespace health: {success}/{len(results)} up ({health_pct}%)")
+    lines.append(f"Free checks remaining: {max(0, FREE_LIMIT - _check_counter)}")
+    
+    return "\n".join(lines)
+
+
+async def _handle_monitor_add(arguments: dict) -> str:
+    url = arguments["url"]
+    interval = arguments.get("interval", 60)
+    
+    if interval < 30:
+        return "❌ Minimum check interval is 30 seconds."
+    
+    # Do an initial check
+    _increment_counter()
+    result = await _do_http_get(url, timeout=10)
+    
+    _monitored_servers[url] = {
+        "interval": int(interval),
+        "last_status": result,
+        "last_checked": time.time(),
+    }
+    
+    status = "✅" if "status_code" in result else "❌"
+    return (
+        f"✅ Added {url} to monitoring (interval: {interval}s)\n"
+        f"   Initial check: {status} {result.get('status_code', 'N/A')} | {result.get('response_time', 'N/A')}\n"
+        f"   Free checks remaining: {max(0, FREE_LIMIT - _check_counter)}"
+    )
+
+
+async def _handle_monitor_status() -> str:
+    if not _monitored_servers:
+        return "ℹ️ No servers are currently being monitored.\nUse `monitor_add(url, interval)` to add one."
+    
+    lines = ["# Monitored Servers Status\n"]
+    
+    for url, info in _monitored_servers.items():
+        interval = info["interval"]
+        last = info["last_status"]
+        last_time = time.strftime("%H:%M:%S UTC", time.gmtime(info["last_checked"]))
+        
+        if "error" in last:
+            lines.append(f"❌ {url}")
+            lines.append(f"   Status: DOWN — {last['error']}")
+        else:
+            status_code = last.get("status_code", "?")
+            rt = last.get("response_time", "?")
+            lines.append(f"✅ {url}")
+            lines.append(f"   Status: {status_code} | {rt}")
+        
+        lines.append(f"   Interval: {interval}s")
+        lines.append(f"   Last checked: {last_time}")
+        lines.append("")
+    
+    lines.append(f"Total monitored: {len(_monitored_servers)}")
+    lines.append(f"Free checks remaining: {max(0, FREE_LIMIT - _check_counter)}")
+    
+    return "\n".join(lines)
+
+
 @server.call_tool()
 async def call_tool(name: str, arguments: dict) -> list[TextContent]:
     if name == "check_server":
+        rate_err = _check_rate_limit()
+        if rate_err:
+            return [TextContent(type="text", text=rate_err)]
         url = arguments["url"]
         timeout = arguments.get("timeout", 10.0)
+        _increment_counter()
         result = await _do_http_get(url, timeout)
         return [TextContent(type="text", text=_format_result(result))]
 
     elif name == "check_mcp_server":
+        rate_err = _check_rate_limit()
+        if rate_err:
+            return [TextContent(type="text", text=rate_err)]
         command = arguments["command"]
         args = arguments.get("args", [])
 
@@ -257,7 +468,6 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
             )
-            # Send MCP init message
             init_msg = (
                 '{"jsonrpc":"2.0","id":1,"method":"initialize",'
                 '"params":{"protocolVersion":"2024-11-05",'
@@ -265,6 +475,7 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             )
             stdout, stderr = proc.communicate(input=init_msg.encode(), timeout=15)
             runtime = time.monotonic() - t0
+            _increment_counter()
 
             stdout_str = stdout.decode("utf-8", errors="replace")
             stderr_str = stderr.decode("utf-8", errors="replace")
@@ -323,9 +534,14 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             ]
 
     elif name == "batch_check":
+        rate_err = _check_rate_limit()
+        if rate_err:
+            return [TextContent(type="text", text=rate_err)]
         urls = arguments["urls"]
         tasks = [_do_http_get(url) for url in urls]
         results = await asyncio.gather(*tasks, return_exceptions=True)
+        for _ in urls:
+            _increment_counter()
 
         lines = ["# Batch Check Results", f"Checked {len(urls)} URLs\n"]
         for url, result in zip(urls, results):
@@ -334,15 +550,32 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
             else:
                 lines.append(f"✅ {url}: {result.get('status_code', '?')} | {result.get('response_time', '?')}")
         lines.append(f"\nCheck complete — {_count_success(results)}/{len(urls)} succeeded")
+        lines.append(f"Free checks remaining: {max(0, FREE_LIMIT - _check_counter)}")
         return [TextContent(type="text", text="\n".join(lines))]
 
     elif name == "check_endpoint":
+        rate_err = _check_rate_limit()
+        if rate_err:
+            return [TextContent(type="text", text=rate_err)]
         url = arguments["url"]
         expected_status = arguments.get("expected_status")
+        _increment_counter()
 
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(None, _do_http_get_with_timing, url, expected_status)
         return [TextContent(type="text", text=_format_timing_result(result))]
+
+    elif name == "check_smithery":
+        text = await _handle_check_smithery(arguments)
+        return [TextContent(type="text", text=text)]
+
+    elif name == "monitor_add":
+        text = await _handle_monitor_add(arguments)
+        return [TextContent(type="text", text=text)]
+
+    elif name == "monitor_status":
+        text = await _handle_monitor_status()
+        return [TextContent(type="text", text=text)]
 
     else:
         return [TextContent(type="text", text=f"Unknown tool: {name}")]
@@ -354,12 +587,6 @@ def _count_success(results: list) -> int:
         if isinstance(r, dict) and r.get("status_code"):
             count += 1
     return count
-
-
-def _truncate(text: str, max_len: int = 2000) -> str:
-    if len(text) > max_len:
-        return text[:max_len] + f"\n... (truncated, {len(text)} total chars)"
-    return text
 
 
 def _format_result(r: dict) -> str:

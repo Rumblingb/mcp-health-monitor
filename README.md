@@ -2,7 +2,7 @@
 
 An MCP server that checks if HTTP endpoints and MCP servers are up and responsive.
 
-**$19/mo** — Subscribe at: [https://buy.stripe.com/dRm6oJ4Hd2Jugek0wz1oI0m](https://buy.stripe.com/dRm6oJ4Hd2Jugek0wz1oI0m)
+**$19/mo** — Subscribe at: [https://buy.stripe.com/aFafZj0qXck4bY43IL1oI0F](https://buy.stripe.com/aFafZj0qXck4bY43IL1oI0F)
 
 ---
 
@@ -39,6 +39,35 @@ Full HTTP check with per-phase timing breakdown.
 
 **Returns:** DNS time, TCP connect time, TLS handshake time + version, HTTP response time, total time, body size, and status match verification.
 
+### 5. `check_smithery(namespace)`
+Fetch all servers from a Smithery namespace and check if their endpoints respond.
+
+- `namespace` (string, required) — Smithery namespace (e.g., `@anthropic`, `@openai`)
+
+**Returns:** Per-server health status, namespace health percentage, free checks remaining.
+
+### 6. `monitor_add(url, interval?)`
+Add a server URL to the monitoring list with a check interval.
+
+- `url` (string, required) — URL of the server to monitor
+- `interval` (number, optional, default: 60, min: 30) — Check interval in seconds
+
+**Returns:** Confirmation with initial check result and free checks remaining.
+
+### 7. `monitor_status()`
+Return the status of all currently monitored servers.
+
+**Returns:** List of monitored servers with their last status, interval, and last check time.
+
+---
+
+## Rate Limiting
+
+- **Free tier:** 20 checks per instance lifetime
+- **Pro tier ($19/mo):** Unlimited checks
+- Rate limit applies to `check_server`, `check_mcp_server`, `batch_check`, `check_endpoint`, and `check_smithery`
+- `monitor_add` and `monitor_status` do not consume check credits
+
 ---
 
 ## Installation
@@ -74,6 +103,9 @@ Configure in your MCP client (e.g., Claude Desktop, Cursor, etc.):
 > "Check if my MCP server at /usr/bin/uvx -- mcp-kubernetes is working"
 > "Batch check these 5 endpoints"
 > "Do a full endpoint timing breakdown on api.example.com expecting status 200"
+> "Check all servers in the @anthropic Smithery namespace"
+> "Monitor api.example.com every 60 seconds"
+> "Show me the status of all monitored servers"
 
 ---
 

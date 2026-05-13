@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MCP Health Monitor — $19/mo</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --bg-card: #161b22;
+      --border: #30363d;
+      --fg: #c9d1d9;
+      --fg-muted: #8b949e;
+      --accent: #58a6ff;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: var(--bg);
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      line-height: 1.6;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 0 24px; }
+
+    /* Header */
+    header {
+      text-align: center;
+      padding: 60px 0 40px;
+      border-bottom: 1px solid var(--border);
+    }
+    header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), #a371f7);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header .sub {
+      color: var(--fg-muted);
+      font-size: 1.1rem;
+      margin-top: 8px;
+    }
+    header .badge {
+      display: inline-block;
+      margin-top: 12px;
+      padding: 6px 16px;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      font-size: 0.9rem;
+      color: var(--fg-muted);
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 48px 0;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--fg-muted);
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+    .cta-btn {
+      display: inline-block;
+      padding: 14px 40px;
+      background: linear-gradient(135deg, #238636, #2ea043);
+      color: #fff;
+      font-size: 1.2rem;
+      font-weight: 600;
+      border-radius: 8px;
+      text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .cta-btn:hover { opacity: 0.9; }
+    .cta-sub {
+      margin-top: 10px;
+      color: var(--fg-muted);
+      font-size: 0.9rem;
+    }
+
+    /* Features */
+    .features {
+      padding: 48px 0;
+    }
+    .features h2 {
+      font-size: 1.6rem;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+    }
+    .feature-card h3 {
+      font-size: 1.1rem;
+      margin-bottom: 8px;
+      color: var(--accent);
+    }
+    .feature-card p {
+      color: var(--fg-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Tools */
+    .tools {
+      padding: 48px 0;
+    }
+    .tools h2 {
+      font-size: 1.6rem;
+      margin-bottom: 32px;
+      text-align: center;
+    }
+    .tool-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px;
+      margin-bottom: 16px;
+    }
+    .tool-block h3 {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-size: 1rem;
+      color: var(--yellow);
+      margin-bottom: 6px;
+    }
+    .tool-block .desc {
+      color: var(--fg-muted);
+      font-size: 0.95rem;
+    }
+
+    /* Pricing */
+    .pricing {
+      padding: 48px 0;
+      text-align: center;
+    }
+    .pricing h2 {
+      font-size: 1.6rem;
+      margin-bottom: 8px;
+    }
+    .pricing .sub {
+      color: var(--fg-muted);
+      margin-bottom: 32px;
+    }
+    .price-card {
+      display: inline-block;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px 48px;
+      min-width: 280px;
+    }
+    .price-card.free {
+      border-color: var(--border);
+    }
+    .price-card.pro {
+      border-color: var(--accent);
+      margin-left: 20px;
+    }
+    .price-card .amount {
+      font-size: 2.5rem;
+      font-weight: 700;
+    }
+    .price-card .period {
+      color: var(--fg-muted);
+      font-size: 0.9rem;
+    }
+    .price-card ul {
+      list-style: none;
+      margin: 20px 0;
+      text-align: left;
+    }
+    .price-card li {
+      padding: 4px 0;
+      color: var(--fg-muted);
+      font-size: 0.95rem;
+    }
+    .price-card li::before {
+      content: "✓ ";
+      color: var(--green);
+      font-weight: 700;
+    }
+    .price-card .btn {
+      display: inline-block;
+      padding: 10px 32px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: opacity 0.2s;
+    }
+    .price-card .btn:hover { opacity: 0.9; }
+    .btn-outline {
+      border: 1px solid var(--border);
+      color: var(--fg);
+    }
+    .btn-pro {
+      background: linear-gradient(135deg, #238636, #2ea043);
+      color: #fff;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 32px 0;
+      border-top: 1px solid var(--border);
+      color: var(--fg-muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 600px) {
+      header h1 { font-size: 1.8rem; }
+      .price-card.pro { margin-left: 0; margin-top: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>MCP Health Monitor</h1>
+      <p class="sub">Real-time uptime &amp; health checks for your MCP servers</p>
+      <span class="badge">Built on the Model Context Protocol</span>
+    </header>
+
+    <section class="hero">
+      <p>
+        An MCP-native tool that pings your endpoints, validates MCP server handshakes,
+        checks entire Smithery namespaces, and monitors servers — all from any MCP client.
+      </p>
+      <a class="cta-btn" href="https://buy.stripe.com/aFafZj0qXck4bY43IL1oI0F">Subscribe — $19/mo</a>
+      <p class="cta-sub">20 free checks per instance. No credit card for free tier.</p>
+    </section>
+
+    <section class="features">
+      <h2>Why MCP Health Monitor?</h2>
+      <div class="feature-grid">
+        <div class="feature-card">
+          <h3>🔍 Server Check</h3>
+          <p>Ping any URL and get status code, response time, content-type, and server header.</p>
+        </div>
+        <div class="feature-card">
+          <h3>⚡ MCP Handshake</h3>
+          <p>Launch an MCP server process and verify it responds to the initialization protocol.</p>
+        </div>
+        <div class="feature-card">
+          <h3>📦 Smithery Scan</h3>
+          <p>Check all servers in a Smithery namespace and get a namespace health report.</p>
+        </div>
+        <div class="feature-card">
+          <h3>📊 Dashboard</h3>
+          <p>Add servers to a watchlist and query their real-time status anytime.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="tools">
+      <h2>Available Tools</h2>
+      <div class="tool-block">
+        <h3>check_server(url, timeout?)</h3>
+        <p class="desc">Ping a URL and report status code, response time, content-type, and server header.</p>
+      </div>
+      <div class="tool-block">
+        <h3>check_mcp_server(command, args?)</h3>
+        <p class="desc">Start an MCP server process and verify the initialization handshake.</p>
+      </div>
+      <div class="tool-block">
+        <h3>check_smithery(namespace)</h3>
+        <p class="desc">Fetch all servers from a Smithery namespace and check their endpoints.</p>
+      </div>
+      <div class="tool-block">
+        <h3>monitor_add(url, interval)</h3>
+        <p class="desc">Add a server URL to the monitoring list with a check interval (minimum 30s).</p>
+      </div>
+      <div class="tool-block">
+        <h3>monitor_status()</h3>
+        <p class="desc">Return the status of all currently monitored servers.</p>
+      </div>
+      <div class="tool-block">
+        <h3>batch_check(urls[])</h3>
+        <p class="desc">Check multiple URLs in parallel and return all results at once.</p>
+      </div>
+      <div class="tool-block">
+        <h3>check_endpoint(url, expected_status?)</h3>
+        <p class="desc">Full HTTP check with per-phase timing breakdown (DNS, connect, TLS, response).</p>
+      </div>
+    </section>
+
+    <section class="pricing">
+      <h2>Simple Pricing</h2>
+      <p class="sub">Start free. Upgrade when you need more.</p>
+      <div style="display: flex; justify-content: center; flex-wrap: wrap;">
+        <div class="price-card free">
+          <div class="amount">Free</div>
+          <ul>
+            <li>20 checks per instance</li>
+            <li>All tools included</li>
+            <li>Community support</li>
+          </ul>
+          <a class="btn btn-outline" href="#install">Get Started</a>
+        </div>
+        <div class="price-card pro">
+          <div class="amount">$19</div>
+          <div class="period">per month</div>
+          <ul>
+            <li>Unlimited checks</li>
+            <li>All tools included</li>
+            <li>Priority support</li>
+            <li>Early feature access</li>
+          </ul>
+          <a class="btn btn-pro" href="https://buy.stripe.com/aFafZj0qXck4bY43IL1oI0F">Subscribe</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="tools" id="install">
+      <h2>Installation</h2>
+      <div class="tool-block">
+        <h3>1. Install</h3>
+        <p class="desc">
+          <code>pip install -r requirements.txt</code>
+        </p>
+      </div>
+      <div class="tool-block">
+        <h3>2. Run</h3>
+        <p class="desc">
+          <code>python server.py</code>
+        </p>
+      </div>
+      <div class="tool-block">
+        <h3>3. Configure in your MCP client</h3>
+        <p class="desc">
+          Add to your MCP client config (Claude Desktop, Cursor, etc.):<br><br>
+          <code style="display: block; white-space: pre; background: #0d1117; padding: 12px; border: 1px solid var(--border); border-radius: 6px;">
+{
+  "mcpServers": {
+    "mcp-health-monitor": {
+      "command": "python",
+      "args": ["/path/to/mcp-health-monitor/server.py"]
+    }
+  }
+}
+          </code>
+        </p>
+      </div>
+      <div class="tool-block">
+        <h3>4. Ask your AI assistant</h3>
+        <p class="desc">
+          "Is example.com up?"<br>
+          "Check all servers in the @anthropic namespace"<br>
+          "Monitor api.example.com every 60 seconds"<br>
+          "Show me the status of all monitored servers"
+        </p>
+      </div>
+    </section>
+
+    <footer>
+      <p>
+        <a href="https://github.com/Rumblingb/mcp-health-monitor">GitHub</a> &middot;
+        <a href="https://buy.stripe.com/aFafZj0qXck4bY43IL1oI0F">Subscribe $19/mo</a> &middot;
+        Built with the MCP Python SDK
+      </p>
+    </footer>
+  </div>
+</body>
+</html>
